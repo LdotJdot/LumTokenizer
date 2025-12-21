@@ -12,22 +12,6 @@ using System.Text.RegularExpressions;
 namespace LumTokenizer.Tokenizer
 {
 
-
-    sealed class MemoryCharComparer : IEqualityComparer<ReadOnlyMemory<char>>
-    {
-        public bool Equals(ReadOnlyMemory<char> x, ReadOnlyMemory<char> y) =>
-            x.Span.SequenceEqual(y.Span);
-
-        public int GetHashCode(ReadOnlyMemory<char> obj)
-        {
-            var span = obj.Span;
-            HashCode hc = default;
-            foreach (var c in span)
-                hc.Add(c);
-            return hc.ToHashCode();
-        }
-    }
-
     readonly struct StringPair
     {
         public readonly string First;
