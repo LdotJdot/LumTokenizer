@@ -52,9 +52,9 @@ namespace LumTokenizer.Tokenizer
 
 
         Encoding encoding = Encoding.UTF8;
-        private BPETokenizer(string[] bpeVocabLines, Dictionary<string, int> encoderJson, Dictionary<int, string> special, RegexType regexType)
+        private BPETokenizer(string[] bpeVocabLines, Dictionary<string, int> encoderJson, Dictionary<int, string> special, Regex regex)
         {
-            _bpeParserRegex = RegUtils.GetRegex(regexType);
+            _bpeParserRegex = regex;
             _encodings = encoderJson.ToFrozenDictionary();
             _vocabCount = encoderJson.Count;
 
@@ -67,7 +67,7 @@ namespace LumTokenizer.Tokenizer
 
         public static BPETokenizer CreateTokenizer(string path, bool mergesAsString = false, RegexType regexType = RegexType.RegexCl100KBase, int vocabSize = 0)
         {
-            var (bpeVocabLines, encoderJsonDictionary, special) =
+            var (bpeVocabLines, encoderJsonDictionary, special,regexStr) =
                 mergesAsString
                 ? TokMap.LoadFromTokenizerJson_MergesAsString(path)
                 : TokMap.LoadFromTokenizerJson(path);
@@ -87,7 +87,17 @@ namespace LumTokenizer.Tokenizer
                 bpeVocabLines = bpeVocabLines.Take(vocabSize).ToArray();
             }
 
-            return new BPETokenizer(bpeVocabLines, encoderJsonDictionary, special, regexType);
+            Regex regex;
+            if (!string.IsNullOrWhiteSpace(regexStr))
+            {
+                regex = new Regex(regexStr, RegexOptions.Compiled);
+            }
+            else
+            {
+                regex = RegUtils.GetRegex(regexType);
+            }
+
+            return new BPETokenizer(bpeVocabLines, encoderJsonDictionary, special, regex);
         }
 
         private void RegisterSpecialTokens(Dictionary<int, string> special,

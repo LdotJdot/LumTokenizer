@@ -15,42 +15,43 @@ namespace ConsoleApp1
         static void Main(string[] args)
         {
 
-            //var cb = new CompareBenchmark();
 
-            //cb.Setup();
-            //IList<int> ids;
-            //string text = cb._kLongText;
-            //int i = 0;
-            //string res;
-            ////   while (i < 100000)
-            //{
-            //    i++;
-            //    text = cb._kLongText;
-            //    ids = cb._sharpToken.Encode(text);
-            //    Console.WriteLine(string.Join(",", ids));
-            //    res = cb._sharpToken.Decode(ids);
-            //    Console.WriteLine(res);
+            var cb = new CompareBenchmark();
+
+            cb.Setup();
+            IList<int> ids;
+            string text = cb.TextSamples().Last();
+            int i = 0;
+            string res;
+            //   while (i < 100000)
+            {
+                i++;
+                ids = cb._sharpToken.Encode(text);
+                Console.WriteLine(string.Join(",", ids));
+                res = cb._sharpToken.Decode(ids);
+                Console.WriteLine(res);
 
 
-            //    ids = cb._tikToken.Encode(text);
-            //    Console.WriteLine(string.Join(",", ids));
-            //    res = cb._tikToken.Decode(ids.ToList());
-            //    Console.WriteLine(res);
+                ids = cb._tikToken.Encode(text);
+                Console.WriteLine(string.Join(",", ids));
+                res = cb._tikToken.Decode(ids.ToList());
+                Console.WriteLine(res);
 
-            //    ids = cb._tokenizer1.Encode(text, false);
-            //    Console.WriteLine(string.Join(",", ids));
-            //    res = cb._tokenizer1.Decode(ids.ToArray());
-            //    Console.WriteLine(res);
+                ids = cb._tokenizer1.Encode(text, false);
+                Console.WriteLine(string.Join(",", ids));
+                res = cb._tokenizer1.Decode(ids.ToArray());
+                Console.WriteLine(res);
 
-            //    ids = cb._tokenizer2.Encode(text);
-            //    Console.WriteLine(string.Join(",", ids));
-            //    res = cb._tokenizer2.Decode(ids.ToArray());
-            //    Console.WriteLine(res);
-            //}
+                ids = cb._tokenizer2.Encode(text);
+                Console.WriteLine(string.Join(",", ids));
+                res = cb._tokenizer2.Decode(ids.ToArray());
+                Console.WriteLine(res);
+            }
 
-            //Console.WriteLine();
-            //Console.WriteLine("All done");
-            //Console.ReadLine();
+            Console.WriteLine();
+            Console.WriteLine("All done");
+            Console.ReadLine();
+            return;
 
             BenchmarkRunner.Run<CompareBenchmark>();
 
