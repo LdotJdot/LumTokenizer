@@ -88,8 +88,13 @@ namespace LumTokenizer.Tokenizer
             }
 
             Regex regex;
-            if (!string.IsNullOrWhiteSpace(regexStr))
+
+            if (regexType == RegexType.Custom)
             {
+                if(string.IsNullOrWhiteSpace(regexStr))
+                {
+                    throw new ArgumentException("Custom regex string must be provided when regexType is Custom.");
+                }
                 regex = new Regex(regexStr, RegexOptions.Compiled);
             }
             else

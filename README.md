@@ -1,4 +1,4 @@
-# LumTokenizer 1.0.6.1
+# LumTokenizer 1.0.6.2
 
 > A faster, lighter tokenizer library for .NET (.NET 10)
 ---

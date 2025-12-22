@@ -73,7 +73,7 @@ namespace ConsoleApp1
             _sharpToken = GptEncoding.GetEncoding("cl100k_base");
             _tikToken = TikToken.GetEncodingAsync("cl100k_base").ConfigureAwait(false).GetAwaiter().GetResult();
             _tokenizer1 = BPETokenizer.CreateTokenizer(
-                @"D:\Data\Personal\AI\llm\tokenizer\cl100k.txt", true, RegexType.RegexCl100KBase);
+                @"D:\Data\Personal\AI\llm\tokenizer\cl100k.txt", true, RegexType.Custom);
             _tokenizer2 = BPETokenizer.CreateTokenizer(
                 @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false, RegexType.RegexCl100KBase);
         }

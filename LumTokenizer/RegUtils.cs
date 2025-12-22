@@ -9,6 +9,11 @@ namespace LumTokenizer.RegexExpression
     public enum RegexType
     {
         /// <summary>
+        /// 从配置文件读取自定义正则表达式
+        /// </summary>
+        Custom,
+
+        /// <summary>
         /// 50K 基础版（类似 GPT-2）
         /// </summary>
         Regex50KBase,
