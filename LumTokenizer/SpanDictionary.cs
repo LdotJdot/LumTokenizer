@@ -1,19 +1,31 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization;
-using System.Text;
-
 namespace LumTokenizer
 {
     public class SpanDictionary<TValue> 
     {
+        private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.NoRecursion);
+        public IDisposable Read() => new Releaser(_lock, false);
+        public IDisposable Write() => new Releaser(_lock, true);
+        private readonly struct Releaser : IDisposable
+        {
+            private readonly ReaderWriterLockSlim _l;
+            private readonly bool _isWrite;
+            public Releaser(ReaderWriterLockSlim l, bool isWrite) 
+            {
+                _l = l;
+                _isWrite = isWrite;
+                if (isWrite) l.EnterWriteLock(); else l.EnterReadLock();
+            }
+            public void Dispose() { if (_isWrite) _l.ExitWriteLock(); else _l.ExitReadLock(); }
+        }
+
+
         // constants for serialization
         private const string VersionName = "Version"; // Do not rename (binary serialization)
         private const string HashSizeName = "HashSize"; // Do not rename (binary serialization). Must save buckets.Length
@@ -69,6 +81,7 @@ namespace LumTokenizer
         {
             get
             {
+                using var _ = Read();
                 ref TValue value = ref FindValue(key);
                 if (!Unsafe.IsNullRef(ref value))
                 {
@@ -80,6 +93,7 @@ namespace LumTokenizer
             }
             set
             {
+                using var _ = Write();
                 bool modified = TryInsert(key, value, true);
                 Debug.Assert(modified);
             }
@@ -87,12 +101,16 @@ namespace LumTokenizer
 
         public void Add(ReadOnlySpan<char> key, TValue value)
         {
+            using var _ = Write();
+
             bool modified = TryInsert(key, value, true);
             Debug.Assert(modified); // If there was an existing key and the Add failed, an exception will already have been thrown.
         }
 
         public void Clear()
         {
+            using var _ = Write();
+
             int count = _count;
             if (count > 0)
             {
@@ -113,6 +131,8 @@ namespace LumTokenizer
 
         public bool ContainsValue(TValue value)
         {
+            using var _ = Read();
+
             Entry[]? entries = _entries;
             if (value == null)
             {
@@ -153,36 +173,6 @@ namespace LumTokenizer
             return false;
         }
 
-        private void CopyTo(KeyValuePair<string, TValue>[] array, int index)
-        {
-            if (array == null)
-            {
-                //ThrowHelper.ThrowArgumentNullException(ExceptionArgument.array);
-                throw new Exception();
-            }
-
-            if ((uint)index > (uint)array.Length)
-            {
-                //ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.index);
-                throw new Exception();
-            }
-
-            if (array.Length - index < Count)
-            {
-                //ThrowHelper.ThrowArgumentException(ExceptionResource.Arg_ArrayPlusOffTooSmall);
-                throw new Exception();
-            }
-
-            int count = _count;
-            Entry[]? entries = _entries;
-            for (int i = 0; i < count; i++)
-            {
-                if (entries![i].next >= -1)
-                {
-                    array[index++] = new KeyValuePair<string, TValue>(entries[i].key, entries[i].value);
-                }
-            }
-        }
 
         public Enumerator GetEnumerator() => new Enumerator(this, Enumerator.KeyValuePair);
 
@@ -391,6 +381,8 @@ ReturnNotFound:
 
         public bool Remove(ReadOnlySpan<char> key)
         {
+            using var _ = Write();
+
             // The overload Remove(TKey key, out TValue value) is a copy of this method with one additional
             // statement to copy the value for entry being removed into the output parameter.
             // Code has been intentionally duplicated for performance reasons.
@@ -452,6 +444,8 @@ ReturnNotFound:
 
         public bool TryGetValue(ReadOnlySpan<char> key, [MaybeNullWhen(false)] out TValue value)
         {
+            using var _ = Read();
+
             ref TValue valRef = ref FindValue(key);
             if (!Unsafe.IsNullRef(ref valRef))
             {
@@ -473,6 +467,8 @@ ReturnNotFound:
         /// </summary>
         public int EnsureCapacity(int capacity)
         {
+            using var _ = Write();
+
             if (capacity < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(capacity));
@@ -520,6 +516,8 @@ ReturnNotFound:
         /// <exception cref="ArgumentOutOfRangeException">Passed capacity is lower than entries count.</exception>
         public void TrimExcess(int capacity)
         {
+            using var _ = Write();
+
             if (capacity < Count)
             {
                 throw new ArgumentOutOfRangeException(nameof(capacity));
@@ -566,15 +564,6 @@ ReturnNotFound:
             _freeCount = 0;
         }
 
-
-        private static bool IsCompatibleKey(object key)
-        {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-            return key is string;
-        }
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

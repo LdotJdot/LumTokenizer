@@ -196,9 +196,7 @@ namespace LumTokenizer.Tokenizer
             }
         }
                 
-        List<string> word = new List<string>(initialSize);
-        List<string> newWord = new List<string>(initialSize);
-
+  
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool FindBestPair(ReadOnlySpan<string> word,
@@ -231,87 +229,99 @@ namespace LumTokenizer.Tokenizer
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private string[] GetBpeEntryForToken(ReadOnlySpan<char> token)
         {
-            if (_cache.TryGetValue(token, out var cached))
+            var word = new PooledList<string>(initialSize);
+            var newWord = new PooledList<string>(initialSize);
+            try
             {
-                return cached;
-            }
 
-            if (token.Length == 0) return [];
 
-            word.Clear();
-            foreach (var c in token)
-            {
-                word.Add(c.ToString());
-            }
-
-            while (true)
-            {
-                if (word.Count < 2) break;
-
-                // 直接寻找最佳合并对
-                if (!FindBestPair(CollectionsMarshal.AsSpan(word), out var bestPair, out var bestRank))
+                if (_cache.TryGetValue(token, out var cached))
                 {
-                    break;
+                    return cached;
                 }
 
-                newWord.Clear();
-                int i = 0;
+                if (token.Length == 0) return [];
 
-                while (i < word.Count)
+                word.Clear();
+                foreach (var c in token)
                 {
-                    // 查找匹配项
-                    int j = -1;
-                    for (int k = i; k < word.Count; k++)
-                    {
-                        if (word[k] == bestPair.First)
-                        {
-                            j = k;
-                            break;
-                        }
-                    }
+                    word.Add(c.ToString());
+                }
 
-                    if (j == -1)
+                while (true)
+                {
+                    if (word.Count < 2) break;
+
+                    // 直接寻找最佳合并对
+                    if (!FindBestPair(word.AsSpan(), out var bestPair, out var bestRank))
                     {
-                        for (int k = i; k < word.Count; k++)
-                        {
-                            newWord.Add(word[k]);
-                        }
                         break;
                     }
 
-                    // 添加不匹配的部分
-                    if (j > i)
+                    newWord.Clear();
+                    int i = 0;
+
+                    while (i < word.Count)
                     {
-                        for (int k = i; k < j; k++)
+                        // 查找匹配项
+                        int j = -1;
+                        for (int k = i; k < word.Count; k++)
                         {
-                            newWord.Add(word[k]);
+                            if (word[k] == bestPair.First)
+                            {
+                                j = k;
+                                break;
+                            }
+                        }
+
+                        if (j == -1)
+                        {
+                            for (int k = i; k < word.Count; k++)
+                            {
+                                newWord.Add(word[k]);
+                            }
+                            break;
+                        }
+
+                        // 添加不匹配的部分
+                        if (j > i)
+                        {
+                            for (int k = i; k < j; k++)
+                            {
+                                newWord.Add(word[k]);
+                            }
+                        }
+
+                        i = j;
+
+                        // 检查是否可以合并
+                        if (i < word.Count - 1 && word[i] == bestPair.First && word[i + 1] == bestPair.Second)
+                        {
+                            newWord.Add($"{bestPair.First}{bestPair.Second}");
+                            i += 2;
+                        }
+                        else
+                        {
+                            newWord.Add(word[i]);
+                            i++;
                         }
                     }
 
-                    i = j;
+                    word.Clear();
+                    (word, newWord) = (newWord, word);
 
-                    // 检查是否可以合并
-                    if (i < word.Count - 1 && word[i] == bestPair.First && word[i + 1] == bestPair.Second)
-                    {
-                        newWord.Add($"{bestPair.First}{bestPair.Second}");
-                        i += 2;
-                    }
-                    else
-                    {
-                        newWord.Add(word[i]);
-                        i++;
-                    }
+                    if (word.Count == 1) break;
                 }
 
-                word.Clear();
-                (word, newWord) = (newWord, word);
-
-                if (word.Count == 1) break;
+                var val = word.ToArray();
+                _cache[token] = val;
+                return val;
             }
-
-            var val = word.ToArray();
-            _cache[token] = val;
-            return val;
+            finally
+            {
+                word.Dispose();
+                newWord.Dispose();
+            }
         }
 
         SpanStringCollection ssp = new SpanStringCollection();
