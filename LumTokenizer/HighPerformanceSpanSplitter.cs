@@ -12,7 +12,7 @@ namespace LumTokenizer
         private readonly HashSet<string> _keywords;
         private readonly int _maxKeywordLength;
         private readonly HashSet<char> _firstChars;
-        private readonly FrozenDictionary<string, bool> _keywordMap;
+        private readonly SpanDictionary<bool> _keywordMap;
 
         public HighPerformanceSpanSplitter(IEnumerable<string> keywords)
         {
@@ -21,22 +21,21 @@ namespace LumTokenizer
             _keywords = new HashSet<string>();
             _maxKeywordLength = 0;
             _firstChars = new HashSet<char>();
-            
-            var keywordMap = new Dictionary<string, bool>();
+            _keywordMap = new();
 
             foreach (var keyword in keywords)
             {
                 if (!string.IsNullOrEmpty(keyword))
                 {
                     _keywords.Add(keyword);
-                     keywordMap[keyword] = true;
+                    _keywordMap[keyword] = true;
                     _maxKeywordLength = Math.Max(_maxKeywordLength, keyword.Length);
                     if (keyword.Length > 0)
                         _firstChars.Add(keyword[0]);
                 }
             }
 
-            _keywordMap = keywordMap.ToFrozenDictionary();
+            
         }
 
         public void Split(PooledList<Range> ranges, ReadOnlySpan<char> text)

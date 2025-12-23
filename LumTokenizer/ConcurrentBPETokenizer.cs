@@ -330,7 +330,7 @@ namespace LumTokenizer.Tokenizer
                 {
                     var subSp = ssp[i];
 
-                    if (_specialEnc.TryGetValue(text, out var id))
+                    if (_specialEnc.TryGetValue(text.AsSpan(ssp[i]), out var id))
                     {
                         bpeTokens.Add(id);
                     }
