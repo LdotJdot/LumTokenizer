@@ -77,20 +77,22 @@ King Lear, one of Shakespeare's darkest and most savage plays, tells the story o
 
 
 
-| Method                    | text                 | Mean      | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
-|-------------------------- |--------------------- |----------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
-| SharpToken_cl100k_base    | Chinese  | 122.99 us | 2.314 us | 2.273 us |  5.71 |    0.12 | 0.7324 |    9.1 KB |        1.19 |
-| TiktokenSharp_cl100k_base | Chinese  |  96.00 us | 1.829 us | 2.106 us |  4.45 |    0.11 | 0.4883 |   6.34 KB |        0.83 |
-| LumTokenizer_cl100k_base  | Chinese  |  21.56 us | 0.268 us | 0.251 us |  1.00 |    0.02 | 0.6104 |   7.63 KB |        1.00 |
-|                           |                      |           |          |          |       |         |        |           |             |
-| SharpToken_cl100k_base    | English |  26.77 us | 0.520 us | 0.639 us |  1.02 |    0.03 | 0.6714 |   8.38 KB |        0.74 |
-| TiktokenSharp_cl100k_base | English |  20.21 us | 0.383 us | 0.376 us |  0.77 |    0.02 | 0.4272 |   5.51 KB |        0.49 |
-| LumTokenizer_cl100k_base  | English |  26.13 us | 0.495 us | 0.509 us |  1.00 |    0.03 | 0.9155 |  11.31 KB |        1.00 |
-|                           |                      |           |          |          |       |         |        |           |             |
-| SharpToken_cl100k_base    | Mixed  |  90.97 us | 1.580 us | 1.478 us |  3.78 |    0.09 | 0.8545 |   10.9 KB |        1.23 |
-| TiktokenSharp_cl100k_base | Mixed  |  63.85 us | 1.274 us | 1.564 us |  2.65 |    0.08 | 0.4883 |   6.74 KB |        0.76 |
-| LumTokenizer_cl100k_base  | Mixed  |  24.08 us | 0.465 us | 0.435 us |  1.00 |    0.03 | 0.7019 |   8.83 KB |        1.00 |
-
+| Method                              | text                 | Mean      | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------------------------ |--------------------- |----------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
+| SharpToken_cl100k_base              | 人类：请(...)失问题。 [424]  | 141.46 us | 2.779 us | 5.354 us |  6.24 |    0.30 | 0.7324 |    9.1 KB |        1.19 |
+| TiktokenSharp_cl100k_base           | 人类：请(...)失问题。 [424]  | 101.19 us | 1.908 us | 1.874 us |  4.47 |    0.16 | 0.4883 |   6.34 KB |        0.83 |
+| LumTokenizer_cl100k_base            | 人类：请(...)失问题。 [424]  |  22.68 us | 0.458 us | 0.671 us |  1.00 |    0.04 | 0.6104 |   7.63 KB |        1.00 |
+| LumTokenizer_concurrent_cl100k_base | 人类：请(...)失问题。 [424]  |  30.28 us | 0.580 us | 0.690 us |  1.34 |    0.05 | 3.5706 |  43.88 KB |        5.75 |
+|                                     |                      |           |          |          |       |         |        |           |             |
+| SharpToken_cl100k_base              | Huma(...)elp. [1062] |  27.45 us | 0.544 us | 0.745 us |  0.93 |    0.03 | 0.6714 |   8.38 KB |        0.74 |
+| TiktokenSharp_cl100k_base           | Huma(...)elp. [1062] |  20.66 us | 0.401 us | 0.613 us |  0.70 |    0.02 | 0.4272 |   5.51 KB |        0.49 |
+| LumTokenizer_cl100k_base            | Huma(...)elp. [1062] |  29.43 us | 0.582 us | 0.571 us |  1.00 |    0.03 | 0.9155 |  11.31 KB |        1.00 |
+| LumTokenizer_concurrent_cl100k_base | Huma(...)elp. [1062] |  55.34 us | 0.268 us | 0.238 us |  1.88 |    0.04 | 7.3242 |  90.02 KB |        7.96 |
+|                                     |                      |           |          |          |       |         |        |           |             |
+| SharpToken_cl100k_base              | User(...)的样本。 [628]  |  79.35 us | 1.561 us | 2.030 us |  3.01 |    0.08 | 0.8545 |   10.9 KB |        1.23 |
+| TiktokenSharp_cl100k_base           | User(...)的样本。 [628]  |  62.18 us | 1.238 us | 2.415 us |  2.36 |    0.09 | 0.4883 |   6.74 KB |        0.76 |
+| LumTokenizer_cl100k_base            | User(...)的样本。 [628]  |  26.34 us | 0.165 us | 0.154 us |  1.00 |    0.01 | 0.7019 |   8.83 KB |        1.00 |
+| LumTokenizer_concurrent_cl100k_base | User(...)的样本。 [628]  |  41.41 us | 0.163 us | 0.136 us |  1.57 |    0.01 | 3.9673 |  49.05 KB |        5.56 |
 
 Special tokens were consistently ignored under default settings.
 SharpToken is at version 2.0.4; TiktokenSharp is at 1.2.0.

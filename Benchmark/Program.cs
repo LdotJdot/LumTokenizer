@@ -14,14 +14,14 @@ namespace ConsoleApp1
     {
         static void Main(string[] args)
         {
-            var _tokenizer2 = ConcurrentBPETokenizer.CreateTokenizer(
-                @"D:\Data\Personal\AI\llm\tokenizer\minimind_tokenizer.txt", false, RegexType.RegexCl100KBase);
-            var str = "<|im_end|> <|im_start|> 将";
-            var id = _tokenizer2.Encode(str);
+            //var _tokenizer2 = ConcurrentBPETokenizer.CreateTokenizer(
+            //    @"D:\Data\Personal\AI\llm\tokenizer\minimind_tokenizer.txt", false, RegexType.RegexCl100KBase);
+            //var str = "<|im_end|> <|im_start|> 将";
+            //var id = _tokenizer2.Encode(str);
 
-            Console.WriteLine(string.Join(",", id));
+            //Console.WriteLine(string.Join(",", id));
 
-            return;
+            //return;
 
             //var cb = new CompareBenchmark();
 
@@ -72,7 +72,7 @@ namespace ConsoleApp1
         internal GptEncoding _sharpToken;
         internal TikToken _tikToken;
         internal BPETokenizer _tokenizer1;
-        internal BPETokenizer _tokenizer2;
+        internal ConcurrentBPETokenizer _tokenizer2;
 
         [GlobalSetup]
         public void Setup()
@@ -81,8 +81,8 @@ namespace ConsoleApp1
             _tikToken = TikToken.GetEncodingAsync("cl100k_base").ConfigureAwait(false).GetAwaiter().GetResult();
             _tokenizer1 = BPETokenizer.CreateTokenizer(
                 @"D:\Data\Personal\AI\llm\tokenizer\cl100k.txt", true, RegexType.Custom);
-            _tokenizer2 = BPETokenizer.CreateTokenizer(
-                @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false, RegexType.RegexCl100KBase);
+            _tokenizer2 = ConcurrentBPETokenizer.CreateTokenizer(
+                @"D:\Data\Personal\AI\llm\tokenizer\cl100k.txt", true, RegexType.Custom);
         }
 
         // ====== 1. 声明参数源 ======
@@ -120,8 +120,10 @@ namespace ConsoleApp1
             var decoded = _tokenizer1.Decode(encoded, false);
             return encoded.Count;
         }
-              
-        public int LumTokenizer_qwen150k(string text)
+
+        [Benchmark]
+        [ArgumentsSource(nameof(TextSamples))]
+        public int LumTokenizer_concurrent_cl100k_base(string text)
         {
             var encoded = _tokenizer2.Encode(text, false);
             var decoded = _tokenizer2.Decode(encoded, false);
