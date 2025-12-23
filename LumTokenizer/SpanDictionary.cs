@@ -189,11 +189,7 @@ namespace LumTokenizer
 
         internal ref TValue FindValue(ReadOnlySpan<char> key)
         {
-            if (key.Length ==0)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
+ 
             ref Entry entry = ref Unsafe.NullRef<Entry>();
             if (_buckets != null)
             {
@@ -390,15 +386,7 @@ ReturnNotFound:
         }
 
         public bool Remove(ReadOnlySpan<char> key)
-        {
-            // The overload Remove(TKey key, out TValue value) is a copy of this method with one additional
-            // statement to copy the value for entry being removed into the output parameter.
-            // Code has been intentionally duplicated for performance reasons.
-
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
+        {          
 
             if (_buckets != null)
             {
@@ -567,14 +555,6 @@ ReturnNotFound:
         }
 
 
-        private static bool IsCompatibleKey(object key)
-        {
-            if (key == null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-            return key is string;
-        }
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
