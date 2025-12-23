@@ -26,7 +26,7 @@ namespace LumTokenizer.Tokenizer
         private readonly char[] _byteEncoder = new char[256];
         private readonly byte[] _byteDecoder = new byte[1024]; // char to byte
         private readonly FrozenDictionary<StringPair, int> _bpeRanks; // 使用int而不是double
-        private readonly SpanDictionary<string[]> _cache = new(initialSize);
+        private readonly ConcurrentSpanDictionary<string[]> _cache = new(initialSize);
         private readonly SpanDictionary<int> _specialEnc;
         private readonly FrozenDictionary<int, byte[]> _specialDecBytes;
 
@@ -218,6 +218,7 @@ namespace LumTokenizer.Tokenizer
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private string[] GetBpeEntryForToken(ReadOnlySpan<char> token)
         {
+            if (token.Length == 0) return [];
             var word = new PooledList<string>(initialSize);
             var newWord = new PooledList<string>(initialSize);
 
@@ -230,7 +231,6 @@ namespace LumTokenizer.Tokenizer
                     return cached;
                 }
 
-                if (token.Length == 0) return [];
 
                 word.Clear();
                 foreach (var c in token)
