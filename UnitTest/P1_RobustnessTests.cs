@@ -18,7 +18,7 @@ namespace MiniMind.Tokenizer.Tests
         [ClassInitialize]
         public static void Init(TestContext _) =>
             _tok = BPETokenizer.CreateTokenizer(
-                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false,LumTokenizer.RegexExpression.RegexType.RegexCl100KBase);
+                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false, LumTokenizer.RegexExpression.RegexType.RegexCl100KBase);
 
         /* 01 空输入 */
         [TestMethod]
@@ -95,26 +95,64 @@ namespace MiniMind.Tokenizer.Tests
         public void Decode_OutOfRangeId_Throws()
         {
             // 假设实现里会检查 id 范围
-            var res = _tok.Decode([ _tok.VocabSize + 100 ]);
+            var res = _tok.Decode([_tok.VocabSize + 100]);
             Assert.AreEqual(string.Empty, res);
         }
 
 
         /* 09 BOM 头剥离 */
-// 由分词器外实现
+        // 由分词器外实现
 
-/* 10 CRLF 统一 */
-// 纯BPE tokenizer 不处理换行符统一 
+        /* 10 CRLF 统一 */
+        // 纯BPE tokenizer 不处理换行符统一 
 
-/* 11 特殊字符处理 */
-/* 需要在 LumTokenizer.RegexExpression.RegexType.RegexCl100KBase 匹配下满足 */
+        /* 11 特殊字符处理 */
+        /* 需要在 LumTokenizer.RegexExpression.RegexType.RegexCl100KBase 匹配下满足 */
 
-[TestMethod]
-public void Encode_Special_Characters_Merge()
-{
-    // 如果 tokenizer 内部有分块/流式，应能跑完
-    var ids = _tok.Encode("><");
-    Assert.AreEqual(1, ids.Count);
-}
-}
+        [TestMethod]
+        public void Encode_Special_Characters_Merge()
+        {
+            // 如果 tokenizer 内部有分块/流式，应能跑完
+            var ids = _tok.Encode("><");
+            Assert.AreEqual(1, ids.Count);
+        }
+
+        [TestMethod]
+        public void ThreadSafe()
+        {
+            const string Input = "萤火初芒，今天天气good><";
+            const int ParallelRequests = 10_000;   // 并发次数，可按需调大
+
+            // 1. 单线程黄金值
+            var golden = _tok.Encode(Input);
+
+            // 2. 并发轰炸
+            var failures = 0;
+            var done = 0;
+
+            Parallel.For(0, ParallelRequests, new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Environment.ProcessorCount * 2
+            },
+            _ =>
+            {
+                try
+                {
+                    var current = _tok.Encode(Input);
+                    if (!golden.SequenceEqual(current))
+                    {
+                        Interlocked.Increment(ref failures);
+                    }
+                }
+                finally
+                {
+                    Interlocked.Increment(ref done);
+                }
+            });
+
+            // 3. 断言
+            Assert.AreEqual(ParallelRequests, done, "not all threads finished");
+            Assert.AreEqual(0, failures, "thread-safe mismatch detected");
+        }
+    }
 }

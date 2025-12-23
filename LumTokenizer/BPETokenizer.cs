@@ -226,13 +226,14 @@ namespace LumTokenizer.Tokenizer
 
             return found;
         }
+
+
+        [ThreadStatic] static new List<string> word = new List<string>(initialSize);
+        [ThreadStatic] static List<string> newWord = new List<string>(initialSize);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private string[] GetBpeEntryForToken(ReadOnlySpan<char> token)
         {
-            var word = new PooledList<string>(initialSize);
-            var newWord = new PooledList<string>(initialSize);
-            try
-            {
+      
 
 
                 if (_cache.TryGetValue(token, out var cached))
@@ -253,7 +254,7 @@ namespace LumTokenizer.Tokenizer
                     if (word.Count < 2) break;
 
                     // 直接寻找最佳合并对
-                    if (!FindBestPair(word.AsSpan(), out var bestPair, out var bestRank))
+                    if (!FindBestPair(CollectionsMarshal.AsSpan(word), out var bestPair, out var bestRank))
                     {
                         break;
                     }
@@ -316,12 +317,7 @@ namespace LumTokenizer.Tokenizer
                 var val = word.ToArray();
                 _cache[token] = val;
                 return val;
-            }
-            finally
-            {
-                word.Dispose();
-                newWord.Dispose();
-            }
+           
         }
 
         SpanStringCollection ssp = new SpanStringCollection();
