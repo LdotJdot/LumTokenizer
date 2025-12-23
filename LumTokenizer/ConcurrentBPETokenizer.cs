@@ -12,24 +12,10 @@ using System.Text.RegularExpressions;
 namespace LumTokenizer.Tokenizer
 {
 
-    readonly struct StringPair
-    {
-        public readonly string First;
-        public readonly string Second;
-
-        public StringPair(string value1, string value2)
-        {
-            First = value1;
-            Second = value2;
-        }
-
-
-    }
-
     /// <summary>
     /// Represents a tokenizer for converting text into a sequence of tokens.
     /// </summary>
-    public sealed class BPETokenizer : IDisposable
+    public sealed class ConcurrentBPETokenizer : IDisposable
     {
         const int initialSize = 128;
         private Regex _bpeParserRegex;
@@ -52,7 +38,7 @@ namespace LumTokenizer.Tokenizer
 
 
         Encoding encoding = Encoding.UTF8;
-        private BPETokenizer(string[] bpeVocabLines, Dictionary<string, int> encoderJson, Dictionary<int, string> special, Regex regex)
+        private ConcurrentBPETokenizer(string[] bpeVocabLines, Dictionary<string, int> encoderJson, Dictionary<int, string> special, Regex regex)
         {
             _bpeParserRegex = regex;
             _encodings = encoderJson.ToFrozenDictionary();
@@ -65,7 +51,7 @@ namespace LumTokenizer.Tokenizer
             splitter = new HighPerformanceSpanSplitter(special.Values);
         }
 
-        public static BPETokenizer CreateTokenizer(string path, bool mergesAsString = false, RegexType regexType = RegexType.RegexCl100KBase, int vocabSize = 0)
+        public static ConcurrentBPETokenizer CreateTokenizer(string path, bool mergesAsString = false, RegexType regexType = RegexType.RegexCl100KBase, int vocabSize = 0)
         {
             var (bpeVocabLines, encoderJsonDictionary, special,regexStr) =
                 mergesAsString
@@ -102,7 +88,7 @@ namespace LumTokenizer.Tokenizer
                 regex = RegUtils.GetRegex(regexType);
             }
 
-            return new BPETokenizer(bpeVocabLines, encoderJsonDictionary, special, regex);
+            return new ConcurrentBPETokenizer(bpeVocabLines, encoderJsonDictionary, special, regex);
         }
 
         private void RegisterSpecialTokens(Dictionary<int, string> special,
@@ -228,13 +214,16 @@ namespace LumTokenizer.Tokenizer
         }
 
 
-        [ThreadStatic] static new List<string> word = new List<string>(initialSize);
-        [ThreadStatic] static List<string> newWord = new List<string>(initialSize);
+ 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private string[] GetBpeEntryForToken(ReadOnlySpan<char> token)
         {
-      
+            var word = new PooledList<string>(initialSize);
+            var newWord = new PooledList<string>(initialSize);
 
+            try
+            {
+          
 
                 if (_cache.TryGetValue(token, out var cached))
                 {
@@ -254,7 +243,7 @@ namespace LumTokenizer.Tokenizer
                     if (word.Count < 2) break;
 
                     // 直接寻找最佳合并对
-                    if (!FindBestPair(CollectionsMarshal.AsSpan(word), out var bestPair, out var bestRank))
+                    if (!FindBestPair(word.AsSpan(), out var bestPair, out var bestRank))
                     {
                         break;
                     }
@@ -317,33 +306,37 @@ namespace LumTokenizer.Tokenizer
                 var val = word.ToArray();
                 _cache[token] = val;
                 return val;
-           
+            }
+            finally
+            {
+                word.Dispose();
+                newWord.Dispose();
+            }
         }
 
-        SpanStringCollection ssp = new SpanStringCollection();
 
         public List<int> Encode(string text, bool handleSpecialToken = true)
         {
+            var ssp = new PooledList<Range>(text.Length * 6);
+
             var bpeTokens = new List<int>(text.Length);
 
             if (handleSpecialToken)
             {
 
-                ssp.SetOrigin(text);
-
-                splitter.Split(ssp);
+                splitter.Split(ssp,text);
 
                 for (int i = 0; i < ssp.Count; i++)
                 {
                     var subSp = ssp[i];
 
-                    if (_specialEnc.TryGetValue(subSp, out var id))
+                    if (_specialEnc.TryGetValue(text, out var id))
                     {
                         bpeTokens.Add(id);
                     }
                     else
                     {
-                        ProcessRegularText(subSp, bpeTokens);
+                        ProcessRegularText(text.AsSpan(ssp[i]), bpeTokens);
                     }
                 }
             }

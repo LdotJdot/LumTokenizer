@@ -14,7 +14,14 @@ namespace ConsoleApp1
     {
         static void Main(string[] args)
         {
+            var _tokenizer2 = ConcurrentBPETokenizer.CreateTokenizer(
+                @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false, RegexType.RegexCl100KBase);
+            var str = "。<|im_end|> <|im_start|> 将";
+            var id = _tokenizer2.Encode(str);
 
+            Console.WriteLine(string.Join(",", id));
+
+            return;
 
             //var cb = new CompareBenchmark();
 

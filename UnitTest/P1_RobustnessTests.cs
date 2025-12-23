@@ -2,6 +2,7 @@
 using LumTokenizer.Tokenizer;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,12 +15,17 @@ namespace MiniMind.Tokenizer.Tests
     public class P1_RobustnessTests
     {
         private static BPETokenizer _tok;
+        private static ConcurrentBPETokenizer _ctok;
 
         [ClassInitialize]
-        public static void Init(TestContext _) =>
+        public static void Init(TestContext _)
+        {
             _tok = BPETokenizer.CreateTokenizer(
                   @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false, LumTokenizer.RegexExpression.RegexType.RegexCl100KBase);
+            _ctok = ConcurrentBPETokenizer.CreateTokenizer(
+                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false, LumTokenizer.RegexExpression.RegexType.RegexCl100KBase);
 
+        }
         /* 01 空输入 */
         [TestMethod]
         public void Encode_EmptyString_ReturnsEmptyIds() =>
@@ -138,7 +144,7 @@ namespace MiniMind.Tokenizer.Tests
             {
                 try
                 {
-                    var current = _tok.Encode(Input);
+                    var current = _ctok.Encode(Input);
                     if (!golden.SequenceEqual(current))
                     {
                         Interlocked.Increment(ref failures);
