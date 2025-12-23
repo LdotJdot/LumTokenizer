@@ -231,12 +231,12 @@ namespace LumTokenizer.Tokenizer
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private string[] GetBpeEntryForToken(ReadOnlySpan<char> token)
         {
+            if (token.Length == 0) return [];
+
             if (_cache.TryGetValue(token, out var cached))
             {
                 return cached;
             }
-
-            if (token.Length == 0) return [];
 
             word.Clear();
             foreach (var c in token)

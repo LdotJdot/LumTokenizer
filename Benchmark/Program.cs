@@ -15,6 +15,12 @@ namespace ConsoleApp1
         static void Main(string[] args)
         {
 
+            SpanDictionary<int> sd =new SpanDictionary<int>();
+            sd.Add("", 5);
+
+            Console.WriteLine(sd[null]);
+
+            return;
 
             var cb = new CompareBenchmark();
 
