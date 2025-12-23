@@ -67,7 +67,7 @@ namespace LumTokenizer.Tokenizer
 
         public static BPETokenizer CreateTokenizer(string path, bool mergesAsString = false, RegexType regexType = RegexType.RegexCl100KBase, int vocabSize = 0)
         {
-            var (bpeVocabLines, encoderJsonDictionary, special,regexStr) =
+            var (bpeVocabLines, encoderJsonDictionary, special, regexStr) =
                 mergesAsString
                 ? TokMap.LoadFromTokenizerJson_MergesAsString(path)
                 : TokMap.LoadFromTokenizerJson(path);
@@ -91,7 +91,7 @@ namespace LumTokenizer.Tokenizer
 
             if (regexType == RegexType.Custom)
             {
-                if(string.IsNullOrWhiteSpace(regexStr))
+                if (string.IsNullOrWhiteSpace(regexStr))
                 {
                     throw new ArgumentException("Custom regex string must be provided when regexType is Custom.");
                 }
@@ -110,7 +110,7 @@ namespace LumTokenizer.Tokenizer
             out FrozenDictionary<int, byte[]> specialDecBytes_froz
             )
         {
-             specialEnc = new SpanDictionary<int>(special.Count);
+            specialEnc = new SpanDictionary<int>(special.Count);
             var specialDecBytes = new Dictionary<int, byte[]>(special.Count);
 
             foreach (var (id, text) in special)
@@ -141,7 +141,7 @@ namespace LumTokenizer.Tokenizer
                 var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 2)
                 {
-                    bpeRanks[ new (parts[0], parts[1])] = i;
+                    bpeRanks[new(parts[0], parts[1])] = i;
                 }
             }
 
@@ -195,7 +195,7 @@ namespace LumTokenizer.Tokenizer
                 _byteDecoder[_byteEncoder[i]] = (byte)i;
             }
         }
-                
+
         List<string> word = new List<string>(initialSize);
         List<string> newWord = new List<string>(initialSize);
 

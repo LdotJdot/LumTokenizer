@@ -14,50 +14,51 @@ namespace ConsoleApp1
     {
         static void Main(string[] args)
         {
+            var _tokenizer2 = ConcurrentBPETokenizer.CreateTokenizer(
+                @"D:\Data\Personal\AI\llm\tokenizer\minimind_tokenizer.txt", false, RegexType.RegexCl100KBase);
+            var str = "<|im_end|> <|im_start|> 将";
+            var id = _tokenizer2.Encode(str);
 
-            SpanDictionary<int> sd =new SpanDictionary<int>();
-            sd.Add("", 5);
-
-            Console.WriteLine(sd[null]);
+            Console.WriteLine(string.Join(",", id));
 
             return;
 
-            var cb = new CompareBenchmark();
+            //var cb = new CompareBenchmark();
 
-            cb.Setup();
-            IList<int> ids;
-            string text = cb.TextSamples().Last();
-            int i = 0;
-            string res;
-            //   while (i < 100000)
-            {
-                i++;
-                ids = cb._sharpToken.Encode(text);
-                Console.WriteLine(string.Join(",", ids));
-                res = cb._sharpToken.Decode(ids);
-                Console.WriteLine(res);
+            //cb.Setup();
+            //IList<int> ids;
+            //string text = cb.TextSamples().Last();
+            //int i = 0;
+            //string res;
+            ////   while (i < 100000)
+            //{
+            //    i++;
+            //    ids = cb._sharpToken.Encode(text);
+            //    Console.WriteLine(string.Join(",", ids));
+            //    res = cb._sharpToken.Decode(ids);
+            //    Console.WriteLine(res);
 
 
-                ids = cb._tikToken.Encode(text);
-                Console.WriteLine(string.Join(",", ids));
-                res = cb._tikToken.Decode(ids.ToList());
-                Console.WriteLine(res);
+            //    ids = cb._tikToken.Encode(text);
+            //    Console.WriteLine(string.Join(",", ids));
+            //    res = cb._tikToken.Decode(ids.ToList());
+            //    Console.WriteLine(res);
 
-                ids = cb._tokenizer1.Encode(text, false);
-                Console.WriteLine(string.Join(",", ids));
-                res = cb._tokenizer1.Decode(ids.ToArray());
-                Console.WriteLine(res);
+            //    ids = cb._tokenizer1.Encode(text, false);
+            //    Console.WriteLine(string.Join(",", ids));
+            //    res = cb._tokenizer1.Decode(ids.ToArray());
+            //    Console.WriteLine(res);
 
-                ids = cb._tokenizer2.Encode(text);
-                Console.WriteLine(string.Join(",", ids));
-                res = cb._tokenizer2.Decode(ids.ToArray());
-                Console.WriteLine(res);
-            }
+            //    ids = cb._tokenizer2.Encode(text);
+            //    Console.WriteLine(string.Join(",", ids));
+            //    res = cb._tokenizer2.Decode(ids.ToArray());
+            //    Console.WriteLine(res);
+            //}
 
-            Console.WriteLine();
-            Console.WriteLine("All done");
-            Console.ReadLine();
-            return;
+            //Console.WriteLine();
+            //Console.WriteLine("All done");
+            //Console.ReadLine();
+            //return;
 
             BenchmarkRunner.Run<CompareBenchmark>();
 

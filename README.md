@@ -24,7 +24,8 @@ dotnet add package LumTokenizer
 ### 2. The encoding and decoding
 ```csharp
 
-var tokenizer = BPETokenizer.CreateTokenizer("minimind_tokenizer.txt"); // Not thread safe for the moment.
+var tokenizer = BPETokenizer.CreateTokenizer("minimind_tokenizer.txt"); // Not thread safe.
+var ctokenizer = ConcurrentBPETokenizer.CreateTokenizer("minimind_tokenizer.txt"); // Thread safe.
 
 Console.WriteLine(tokenizer.VocabSize);
 
