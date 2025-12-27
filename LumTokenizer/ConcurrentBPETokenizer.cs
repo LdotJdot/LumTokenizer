@@ -17,6 +17,7 @@ namespace LumTokenizer.Tokenizer
     /// </summary>
     public sealed class ConcurrentBPETokenizer : IDisposable
     {
+        public int MaxCache { get; } = 100_0000;
         const int initialSize = 128;
         private Regex _bpeParserRegex;
 
@@ -53,7 +54,7 @@ namespace LumTokenizer.Tokenizer
 
         public static ConcurrentBPETokenizer CreateTokenizer(string path, bool mergesAsString = false, RegexType regexType = RegexType.RegexCl100KBase, int vocabSize = 0)
         {
-            var (bpeVocabLines, encoderJsonDictionary, special,regexStr) =
+            var (bpeVocabLines, encoderJsonDictionary, special, regexStr) =
                 mergesAsString
                 ? TokMap.LoadFromTokenizerJson_MergesAsString(path)
                 : TokMap.LoadFromTokenizerJson(path);
@@ -77,7 +78,7 @@ namespace LumTokenizer.Tokenizer
 
             if (regexType == RegexType.Custom)
             {
-                if(string.IsNullOrWhiteSpace(regexStr))
+                if (string.IsNullOrWhiteSpace(regexStr))
                 {
                     throw new ArgumentException("Custom regex string must be provided when regexType is Custom.");
                 }
@@ -96,7 +97,7 @@ namespace LumTokenizer.Tokenizer
             out FrozenDictionary<int, byte[]> specialDecBytes_froz
             )
         {
-             specialEnc = new SpanDictionary<int>(special.Count);
+            specialEnc = new SpanDictionary<int>(special.Count);
             var specialDecBytes = new Dictionary<int, byte[]>(special.Count);
 
             foreach (var (id, text) in special)
@@ -127,7 +128,7 @@ namespace LumTokenizer.Tokenizer
                 var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 2)
                 {
-                    bpeRanks[ new (parts[0], parts[1])] = i;
+                    bpeRanks[new(parts[0], parts[1])] = i;
                 }
             }
 
@@ -181,8 +182,8 @@ namespace LumTokenizer.Tokenizer
                 _byteDecoder[_byteEncoder[i]] = (byte)i;
             }
         }
-                
-  
+
+
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool FindBestPair(ReadOnlySpan<string> word,
@@ -213,8 +214,9 @@ namespace LumTokenizer.Tokenizer
             return found;
         }
 
+        //long hit=0;
+        //long total=0;
 
- 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private string[] GetBpeEntryForToken(ReadOnlySpan<char> token)
         {
@@ -222,12 +224,14 @@ namespace LumTokenizer.Tokenizer
             var word = new PooledList<string>(initialSize);
             var newWord = new PooledList<string>(initialSize);
 
+            //Interlocked.Increment(ref total);
+
             try
             {
-          
 
-                if (_cache.TryGetValue(token, out var cached))
+                if (MaxCache > 0 && _cache.TryGetValue(token, out var cached))
                 {
+                    // Console.WriteLine($"_cache hit: {Interlocked.Increment(ref hit)/(double)total*100} Count {_cache.Count}");
                     return cached;
                 }
 
@@ -304,7 +308,12 @@ namespace LumTokenizer.Tokenizer
                 }
 
                 var val = word.ToArray();
-                _cache[token] = val;
+
+                if (MaxCache > 0 && _cache.Count <= MaxCache)
+                {
+                    _cache[token] = val;
+                }
+
                 return val;
             }
             finally
@@ -324,7 +333,7 @@ namespace LumTokenizer.Tokenizer
             if (handleSpecialToken)
             {
 
-                splitter.Split(ssp,text);
+                splitter.Split(ssp, text);
 
                 for (int i = 0; i < ssp.Count; i++)
                 {

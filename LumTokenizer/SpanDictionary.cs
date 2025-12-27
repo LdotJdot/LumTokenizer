@@ -9,9 +9,6 @@ namespace LumTokenizer
 {
     public class SpanDictionary<TValue> 
     {
-        private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.NoRecursion);
-        public IDisposable Read() => new Releaser(_lock, false);
-        public IDisposable Write() => new Releaser(_lock, true);
         private readonly struct Releaser : IDisposable
         {
             private readonly ReaderWriterLockSlim _l;
@@ -81,7 +78,6 @@ namespace LumTokenizer
         {
             get
             {
-                using var _ = Read();
                 ref TValue value = ref FindValue(key);
                 if (!Unsafe.IsNullRef(ref value))
                 {
@@ -93,7 +89,6 @@ namespace LumTokenizer
             }
             set
             {
-                using var _ = Write();
                 bool modified = TryInsert(key, value, true);
                 Debug.Assert(modified);
             }
@@ -101,16 +96,12 @@ namespace LumTokenizer
 
         public void Add(ReadOnlySpan<char> key, TValue value)
         {
-            using var _ = Write();
-
             bool modified = TryInsert(key, value, true);
             Debug.Assert(modified); // If there was an existing key and the Add failed, an exception will already have been thrown.
         }
 
         public void Clear()
         {
-            using var _ = Write();
-
             int count = _count;
             if (count > 0)
             {
@@ -131,8 +122,6 @@ namespace LumTokenizer
 
         public bool ContainsValue(TValue value)
         {
-            using var _ = Read();
-
             Entry[]? entries = _entries;
             if (value == null)
             {
@@ -377,8 +366,6 @@ ReturnNotFound:
 
         public bool Remove(ReadOnlySpan<char> key)
         {
-            using var _ = Write();
-
             if (_buckets != null)
             {
                 Debug.Assert(_entries != null, "entries should be non-null");
@@ -431,8 +418,6 @@ ReturnNotFound:
 
         public bool TryGetValue(ReadOnlySpan<char> key, [MaybeNullWhen(false)] out TValue value)
         {
-            using var _ = Read();
-
             ref TValue valRef = ref FindValue(key);
             if (!Unsafe.IsNullRef(ref valRef))
             {
@@ -454,8 +439,6 @@ ReturnNotFound:
         /// </summary>
         public int EnsureCapacity(int capacity)
         {
-            using var _ = Write();
-
             if (capacity < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(capacity));
@@ -503,8 +486,6 @@ ReturnNotFound:
         /// <exception cref="ArgumentOutOfRangeException">Passed capacity is lower than entries count.</exception>
         public void TrimExcess(int capacity)
         {
-            using var _ = Write();
-
             if (capacity < Count)
             {
                 throw new ArgumentOutOfRangeException(nameof(capacity));

@@ -80,7 +80,7 @@ namespace LumTokenizer
         {
         }
 
-        internal ConcurrentSpanDictionary(int concurrencyLevel, int capacity, bool growLockArray)
+        private ConcurrentSpanDictionary(int concurrencyLevel, int capacity, bool growLockArray)
         {
             if (concurrencyLevel <= 0)
             {
@@ -627,8 +627,7 @@ namespace LumTokenizer
         /// If key doesn't exist, we always add value and return true;
         /// </summary>
         private bool TryAddInternal(Tables tables, ReadOnlySpan<char> key, TValue value, bool updateIfExists, bool acquireLock, out TValue resultingValue)
-        {
-
+        {            
             int hashcode = GetHashCode(key);
 
             while (true)
