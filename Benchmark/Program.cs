@@ -16,28 +16,7 @@ namespace ConsoleApp1
         static void Main(string[] args)
         {
 
-            // 先把池填满，逼迫它复用
-            var pool = ArrayPool<int>.Shared;
-            var other = pool.Rent(4);   // 先租一块 4 长度
-            pool.Return(other, false);  // 立即还回去
-
-            var list = new PooledList<int>(4, pool);
-            for (int i = 0; i < 4; i++) list.Add(i);
-
-            Span<int> span = list.AsSpan();   // 此时 span 指向旧缓冲区
-            Console.WriteLine(span[0]);       // 0
-
-            // 再触发 Grow，旧数组被 Return
-            list.Add(4);
-
-            // 现在马上让别的线程/代码把同一块内存租走并写脏
-            var hijack = pool.Rent(4);
-            hijack[0] = 999;
-            pool.Return(hijack, false);
-
-            Console.WriteLine(span[0]);       // 999 ← 稳定复现
-
-            return;
+           
             //var _tokenizer2 = ConcurrentBPETokenizer.CreateTokenizer(
             //    @"D:\Data\Personal\AI\llm\tokenizer\minimind_tokenizer.txt", false, RegexType.RegexCl100KBase);
             //var str = "<|im_end|> <|im_start|> 将";

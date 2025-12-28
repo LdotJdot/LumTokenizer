@@ -1,13 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.1.11304.174 d18.0
+VisualStudioVersion = 18.1.11304.174
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LumTokenizer", "LumTokenizer\LumTokenizer.csproj", "{EC415A32-91E9-1363-77D2-511933726979}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmark", "Benchmark\Benchmark.csproj", "{CF46BD57-69D7-45CE-8439-875E116D16B4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTest", "UnitTest\UnitTest.csproj", "{3750BA01-0A3E-4B00-96B7-1F5CE64E2F3B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmark_SpanDictionary", "Benchmark_SpanDictionary\Benchmark_SpanDictionary.csproj", "{2224BA7E-7B95-4842-B7A4-DC6FEF1DC3FF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -27,6 +29,10 @@ Global
 		{3750BA01-0A3E-4B00-96B7-1F5CE64E2F3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3750BA01-0A3E-4B00-96B7-1F5CE64E2F3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3750BA01-0A3E-4B00-96B7-1F5CE64E2F3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2224BA7E-7B95-4842-B7A4-DC6FEF1DC3FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2224BA7E-7B95-4842-B7A4-DC6FEF1DC3FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2224BA7E-7B95-4842-B7A4-DC6FEF1DC3FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2224BA7E-7B95-4842-B7A4-DC6FEF1DC3FF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
