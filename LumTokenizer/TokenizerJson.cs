@@ -289,18 +289,5 @@ public static class TokMap
             .ToArray();
         return (mergeLines, enc, special, tok.Normalizer, tok.PreTokenizerConfig);
     }
-
-    public static (string[] bpeVocabLines,
-                   Dictionary<string, int> encoder,
-                   Dictionary<int, string> special,
-                   NormalizerConfig? normalizer,
-                   PreTokenizerConfig? preTokenizer)
-          LoadFromTokenizerJson_MergesAsString(string jsonPath)
-    {
-        var json = File.ReadAllText(jsonPath);
-        var tok = JsonSerializer.Deserialize<TokenizerJson_MergesAsString>(json)
-            ?? throw new InvalidOperationException("反序列化 TokenizerJson_MergesAsString 失败。");
-        return BuildLoadResult_StringMerges(tok);
-    }
 }
 

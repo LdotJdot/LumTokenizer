@@ -19,9 +19,9 @@ dotnet add package LumTokenizer
 ```csharp
 using LumTokenizer.Tokenizer;
 
-// 从 tokenizer.json 加载（默认按 merges 是否为「字符串行」自动选择反序列化分支）
-var tokenizer = BPETokenizer.CreateTokenizer("path/to/tokenizer.json", mergesAsString: false);
-var ctokenizer = ConcurrentBPETokenizer.CreateTokenizer("path/to/tokenizer.json", mergesAsString: false);
+// 从 tokenizer.json 加载（merges / pattern 等见下文「自动适配」）
+var tokenizer = BPETokenizer.CreateTokenizer("path/to/tokenizer.json");
+var ctokenizer = ConcurrentBPETokenizer.CreateTokenizer("path/to/tokenizer.json");
 
 Console.WriteLine(tokenizer.VocabSize);
 
@@ -29,12 +29,27 @@ var ids = tokenizer.Encode("hello!  你好");
 Console.WriteLine(string.Join(",", ids));
 Console.WriteLine(tokenizer.Decode(ids));
 
-// 若 merges 为 cl100k 一类「每行一个 pair 字符串」格式，可显式使用：
-// BPETokenizer.CreateTokenizer("cl100k.txt", mergesAsString: true);
+// 可选：限制词表大小（按 id 升序保留前 vocabSize 个 token）
+// BPETokenizer.CreateTokenizer("path/to/tokenizer.json", vocabSize: 32000);
 ```
 
 - **`BPETokenizer`**：单线程使用。
 - **`ConcurrentBPETokenizer`**：多线程共享实例时使用。
+
+---
+
+## 加载时的自动适配（无需额外参数）
+
+`CreateTokenizer(path)` 内部统一调用 `TokMap.LoadFromTokenizerJson`。**不要求**为 merges 格式单独传开关，下列由实现根据 JSON **自动判断**：
+
+| 场景 | 行为 |
+|------|------|
+| **`model.merges` 首元素为字符串** | 按 Hugging Face 常见的 **`["a b", "c d", ...]`** 解析；每行用**第一个空格**拆成左右两段 pair（与 `mergesAsString` 历史语义一致）。 |
+| **`model.merges` 首元素为 JSON 数组** | 按 **`[["a","b"], ...]`** 二维 pair 解析。 |
+| **`merges` 为空数组** | 走 pair 分支的反序列化（无合并规则时 BPE 仅依赖词表粒度）。 |
+| **`Split` / normalizer `Replace` 的 `pattern`** | 支持 **`"…"` 纯字符串正则**、**`{"Regex":"…"}`**、**`{"String":"…"}`**（字面量会按正则转义后再编译）；其它形态会抛错提示。 |
+
+文件须为含 **`"model"`** 节点的合法 JSON（扩展名不限）；**不再提供**「强制字符串 merges」的公开 API——与 HF 导出的两种 merges 形态均由上表自动覆盖。
 
 ---
 
@@ -59,7 +74,7 @@ DeepSeek V4（及同族）导出的 `tokenizer.json` 在真实业务里同时具
    当 `pre_tokenizer` 链 **以 ByteLevel 结尾** 时，片段已是词表所用字符空间，实现上会 **跳过再次 UTF-8 + byte 映射**，直接与 BPE 表交互，避免双重映射错误。
 
 3. **`merges` 双格式**  
-   HuggingFace 常见为字符串行；部分工具导出为二维数组。`TokMap` 会检测 `model.merges` 首元素类型并走对应反序列化，再统一成内部 BPE 所需的「空格分隔 pair」行格式。
+   Hugging Face 常见为字符串行；部分工具导出为二维数组。加载时根据 **`model.merges[0]`** 的 JSON 类型自动分支（见上文「加载时的自动适配」），再统一成内部 BPE 所需的 merge 顺序。
 
 4. **性能与 AOT**  
    BPE 核心仍配合 **`ArrayPool`** 等习惯用法；编码前管线工作在 **`string` 片段列表**上，与「纯 Span、零配置」相比会增加分配与分支，这是为兼容真实 `tokenizer.json` 的必要成本。  
@@ -79,7 +94,7 @@ DeepSeek V4（及同族）导出的 `tokenizer.json` 在真实业务里同时具
 | 字段 | 说明 |
 |------|------|
 | **`vocab`** | 词表 `token → id`，必需。 |
-| **`merges`** | 支持 **`["a b", ...]`**（字符串行）与 **`[["a","b"], ...]`**（二维数组）；前者可通过 `TokMap.LoadFromTokenizerJson` 自动识别，或统一使用 `CreateTokenizer(..., mergesAsString: true/false)` 与对应加载 API。 |
+| **`merges`** | 支持 **`["a b", ...]`** 与 **`[["a","b"], ...]`**；由加载逻辑按首元素类型**自动选择**解析方式（无需调用方配置）。 |
 
 ### `added_tokens`
 

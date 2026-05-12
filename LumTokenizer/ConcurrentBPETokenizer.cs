@@ -50,12 +50,10 @@ namespace LumTokenizer.Tokenizer
             splitter = new HighPerformanceSpanSplitter(special.Values);
         }
 
-        public static ConcurrentBPETokenizer CreateTokenizer(string path, bool mergesAsString = false, int vocabSize = 0)
+        public static ConcurrentBPETokenizer CreateTokenizer(string path, int vocabSize = 0)
         {
             var (bpeVocabLines, encoderJsonDictionary, special, normalizer, preTokenizer) =
-                mergesAsString
-                ? TokMap.LoadFromTokenizerJson_MergesAsString(path)
-                : TokMap.LoadFromTokenizerJson(path);
+                TokMap.LoadFromTokenizerJson(path);
 
             if (vocabSize > 0 && encoderJsonDictionary.Count > vocabSize)
             {

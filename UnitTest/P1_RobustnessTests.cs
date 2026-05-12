@@ -21,9 +21,9 @@ namespace MiniMind.Tokenizer.Tests
         public static void Init(TestContext _)
         {
             _tok = BPETokenizer.CreateTokenizer(
-                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false);
+                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json");
             _ctok = ConcurrentBPETokenizer.CreateTokenizer(
-                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false);
+                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json");
 
         }
         /* 01 空输入 */
