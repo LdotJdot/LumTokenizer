@@ -24,7 +24,12 @@ namespace LumTokenizer.Tokenizer
     }
 
     /// <summary>
-    /// Represents a tokenizer for converting text into a sequence of tokens.
+    /// 单线程 BPE tokenizer。
+    /// <para>
+    /// <b>线程安全性：本类型不是线程安全的。</b>多线程并发使用同一实例的 <c>Encode</c> 会因为
+    /// 内部 <c>_cache</c>（<see cref="SpanDictionary{TValue}"/>，非并发）以及 Encode 内部的
+    /// 共享 PooledList 缓冲区导致数据竞争。需要并发场景请使用 <see cref="ConcurrentBPETokenizer"/>。
+    /// </para>
     /// </summary>
     public sealed class BPETokenizer : IDisposable
     {
@@ -60,7 +65,13 @@ namespace LumTokenizer.Tokenizer
 
             _encodePipeline = TokenizerEncodePipeline.Compile(normalizer, preTokenizer, _byteEncoder, encoding);
 
-            splitter = new HighPerformanceSpanSplitter(special.Values);
+            // 与 ConcurrentBPETokenizer 一致：按 special token 长度降序构造 splitter，保证最长前缀优先匹配。
+            var orderedSpecials = new List<string>(special.Count);
+            foreach (var v in special.Values)
+                if (!string.IsNullOrEmpty(v))
+                    orderedSpecials.Add(v);
+            orderedSpecials.Sort(static (a, b) => b.Length.CompareTo(a.Length));
+            splitter = new HighPerformanceSpanSplitter(orderedSpecials);
         }
 
         public static BPETokenizer CreateTokenizer(string path, int vocabSize = 0)
@@ -114,11 +125,15 @@ namespace LumTokenizer.Tokenizer
                 decodings[value] = key;
             }
 
-            // 构建BPE合并排名
-            var bpeMerges = bpeVocabLines.AsSpan(1, bpeVocabLines.Length - 2);
-            for (int i = 0; i < bpeMerges.Length; i++)
+            // 构建 BPE 合并排名（与 ConcurrentBPETokenizer 同步修复）：
+            // 之前 `AsSpan(1, Length - 2)` 会丢弃首尾 merge，且当 Length < 3 抛 ArgumentOutOfRangeException。
+            // `TokMap.LoadFromTokenizerJson` 返回的 mergeLines 已是纯合并行（无版本注释/末尾占位），
+            // 应当整段遍历。
+            for (int i = 0; i < bpeVocabLines.Length; i++)
             {
-                var line = bpeMerges[i];
+                var line = bpeVocabLines[i];
+                if (string.IsNullOrEmpty(line))
+                    continue;
                 var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 2)
                 {
@@ -291,15 +306,23 @@ namespace LumTokenizer.Tokenizer
             }
 
             var val = word.ToArray();
-            _cache[token] = val;
+            // 与 ConcurrentBPETokenizer 同步加 soft cap，避免长运行时 _cache 单调增长 OOM。
+            if (_cache.Count < SoftCacheLimit)
+                _cache[token] = val;
             return val;
         }
+
+        /// <summary>非并发版的内部 piece 缓存软上限；超过后停止写入（已有的仍可命中）。</summary>
+        private const int SoftCacheLimit = 1_000_000;
 
         SpanStringCollection ssp = new SpanStringCollection();
 
         public List<int> Encode(string text, bool handleSpecialToken = true)
         {
+            ArgumentNullException.ThrowIfNull(text);
             var bpeTokens = new List<int>(text.Length);
+            if (text.Length == 0)
+                return bpeTokens;
 
             if (handleSpecialToken)
             {
@@ -356,23 +379,31 @@ namespace LumTokenizer.Tokenizer
                     continue;
                 }
 
-                byte[] utf8Bytes = _bytePool.Rent(encoding.GetMaxByteCount(piece.Length));
-                int bytesWritten = encoding.GetBytes(piece.AsSpan(), utf8Bytes);
-
-                char[] tokenChars = _charPool.Rent(bytesWritten);
-
-                for (int bi = 0; bi < bytesWritten; bi++)
-                    tokenChars[bi] = _byteEncoder[utf8Bytes[bi]];
-
-                _bytePool.Return(utf8Bytes);
-
-                var bpeEntry2 = GetBpeEntryForToken(tokenChars.AsSpan(0, bytesWritten));
-                _charPool.Return(tokenChars);
-
-                foreach (var token in bpeEntry2)
+                // try/finally 保证异常路径也释放 ArrayPool 借用，避免长运行慢性资源泄漏。
+                byte[]? utf8Bytes = null;
+                char[]? tokenChars = null;
+                try
                 {
-                    if (_encodings.TryGetValue(token, out var tokenId))
-                        output.Add(tokenId);
+                    utf8Bytes = _bytePool.Rent(encoding.GetMaxByteCount(piece.Length));
+                    int bytesWritten = encoding.GetBytes(piece.AsSpan(), utf8Bytes);
+
+                    tokenChars = _charPool.Rent(bytesWritten);
+
+                    for (int bi = 0; bi < bytesWritten; bi++)
+                        tokenChars[bi] = _byteEncoder[utf8Bytes[bi]];
+
+                    var bpeEntry2 = GetBpeEntryForToken(tokenChars.AsSpan(0, bytesWritten));
+
+                    foreach (var token in bpeEntry2)
+                    {
+                        if (_encodings.TryGetValue(token, out var tokenId))
+                            output.Add(tokenId);
+                    }
+                }
+                finally
+                {
+                    if (utf8Bytes is not null) _bytePool.Return(utf8Bytes);
+                    if (tokenChars is not null) _charPool.Return(tokenChars);
                 }
             }
         }

@@ -555,9 +555,34 @@ public sealed class TokenizerEncodePipeline
                 output.Add(EncodePart(input.AsSpan()));
         }
 
+        /// <summary>
+        /// 上限 1KB 栈分配，超过则改用 ArrayPool。修复点：原实现对未知长度直接 `stackalloc`，
+        /// 极长 segment（极端长文本 + 单 piece 大段）会 StackOverflow，是用户输入触发的崩溃风险。
+        /// </summary>
+        private const int StackallocByteThreshold = 1024;
+
         private string EncodePart(ReadOnlySpan<char> seg)
         {
-            Span<byte> buf = stackalloc byte[_utf8.GetMaxByteCount(seg.Length)];
+            var maxBytes = _utf8.GetMaxByteCount(seg.Length);
+            if (maxBytes <= StackallocByteThreshold)
+            {
+                Span<byte> buf = stackalloc byte[StackallocByteThreshold];
+                return EncodePartCore(seg, buf);
+            }
+
+            byte[] rented = System.Buffers.ArrayPool<byte>.Shared.Rent(maxBytes);
+            try
+            {
+                return EncodePartCore(seg, rented.AsSpan(0, maxBytes));
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+
+        private string EncodePartCore(ReadOnlySpan<char> seg, Span<byte> buf)
+        {
             var n = _utf8.GetBytes(seg, buf);
             var sb = new StringBuilder(n);
             for (var i = 0; i < n; i++)

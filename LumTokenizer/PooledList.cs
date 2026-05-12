@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -11,8 +11,12 @@ namespace LumTokenizer
     using System.Runtime.CompilerServices;
 
     /// <summary>
-    /// 池化 List<T>，用完 using 自动归还。
-    /// 线程安全、0 分配、高频场景专用。
+    /// 池化 List&lt;T&gt;，用完 using 自动归还。
+    /// <para>
+    /// <b>线程安全性：本类型不是线程安全的。</b>仅适用于单线程或外部已做互斥的场景；
+    /// 多线程并发 <c>Add</c> 会同时损坏 <c>_count</c> 与 <c>_buffer</c>。
+    /// 并发场景请改用 <see cref="System.Collections.Concurrent"/> 下的容器。
+    /// </para>
     /// </summary>
     public sealed class PooledList<T> : IDisposable
     {

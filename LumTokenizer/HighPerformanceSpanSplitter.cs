@@ -1,4 +1,4 @@
-﻿using LumTokenizer.Tokenizer;
+using LumTokenizer.Tokenizer;
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
@@ -58,34 +58,26 @@ namespace LumTokenizer
                 {
                     int maxLength = Math.Min(_maxKeywordLength, inputLength - currentIndex);
 
-                    // 优先尝试最长匹配
+                    // 优先尝试最长匹配。
+                    // 修复点：热路径不再对每个候选长度做 candidate.ToString() 的字符串分配；
+                    // SpanDictionary 自带 ReadOnlySpan<char> 重载，直接基于 span 哈希查找。
                     for (int length = maxLength; length >= 1; length--)
                     {
                         var candidate = span.Slice(currentIndex, length);
 
-                        // 快速检查
-                        if (length > 0 && _firstChars.Contains(candidate[0]))
+                        if (_keywordMap.ContainsKey(candidate))
                         {
-                            // 使用自定义比较或转换为string
-                            string candidateStr = candidate.ToString();
-
-                            if (_keywordMap.ContainsKey(candidateStr))
+                            if (currentIndex > textStart)
                             {
-                                // 添加文本段
-                                if (currentIndex > textStart)
-                                {
-                                    ranges.Add(new Range(textStart, currentIndex));
-                                }
-
-                                // 添加关键词段
-                                ranges.Add(new Range(currentIndex, currentIndex + length));
-
-                                // 更新位置
-                                currentIndex += length;
-                                textStart = currentIndex;
-                                found = true;
-                                break;
+                                ranges.Add(new Range(textStart, currentIndex));
                             }
+
+                            ranges.Add(new Range(currentIndex, currentIndex + length));
+
+                            currentIndex += length;
+                            textStart = currentIndex;
+                            found = true;
+                            break;
                         }
                     }
                 }
@@ -96,7 +88,6 @@ namespace LumTokenizer
                 }
             }
 
-            // 最后一段文本
             if (textStart < inputLength)
             {
                 ranges.Add(new Range(textStart, inputLength));
@@ -123,34 +114,23 @@ namespace LumTokenizer
                 {
                     int maxLength = Math.Min(_maxKeywordLength, inputLength - currentIndex);
 
-                    // 优先尝试最长匹配
                     for (int length = maxLength; length >= 1; length--)
                     {
                         var candidate = span.Slice(currentIndex, length);
 
-                        // 快速检查
-                        if (length > 0 && _firstChars.Contains(candidate[0]))
+                        if (_keywordMap.ContainsKey(candidate))
                         {
-                            // 使用自定义比较或转换为string
-                            string candidateStr = candidate.ToString();
-
-                            if (_keywordMap.ContainsKey(candidateStr))
+                            if (currentIndex > textStart)
                             {
-                                // 添加文本段
-                                if (currentIndex > textStart)
-                                {
-                                    input.Add(new Range(textStart, currentIndex));
-                                }
-
-                                // 添加关键词段
-                                input.Add(new Range(currentIndex, currentIndex + length));
-
-                                // 更新位置
-                                currentIndex += length;
-                                textStart = currentIndex;
-                                found = true;
-                                break;
+                                input.Add(new Range(textStart, currentIndex));
                             }
+
+                            input.Add(new Range(currentIndex, currentIndex + length));
+
+                            currentIndex += length;
+                            textStart = currentIndex;
+                            found = true;
+                            break;
                         }
                     }
                 }
@@ -161,7 +141,6 @@ namespace LumTokenizer
                 }
             }
 
-            // 最后一段文本
             if (textStart < inputLength)
             {
                 input.Add(new Range(textStart, inputLength));

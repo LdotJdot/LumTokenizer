@@ -267,27 +267,77 @@ public static class TokMap
     private static (string[] bpeVocabLines, Dictionary<string, int> encoder, Dictionary<int, string> special, NormalizerConfig? normalizer, PreTokenizerConfig? preTokenizer)
         BuildLoadResult_PairMerges(TokenizerJson tok)
     {
+        // 严格校验：tokenizer.json 必含 model.vocab 与 model.merges（且 merges 元素必须是 2-tuple），
+        // added_tokens 可缺省但若存在则元素必须有 content 字段。任何残缺立即抛 InvalidOperationException
+        // 指明具体字段，避免后续 NRE/越界。
+        if (tok is null)
+            throw new InvalidOperationException("tokenizer.json 反序列化失败：根对象为空。");
+        if (tok.Model is null)
+            throw new InvalidOperationException("tokenizer.json 缺少 \"model\" 节点。");
+        if (tok.Model.Vocab is null || tok.Model.Vocab.Count == 0)
+            throw new InvalidOperationException("tokenizer.json \"model.vocab\" 节点缺失或为空。");
+        if (tok.Model.Merges is null)
+            throw new InvalidOperationException("tokenizer.json \"model.merges\" 节点缺失。");
+
         var enc = tok.Model.Vocab;
-        var special = tok.SpecialTokens();
-        var mergeLines = tok.Model.Merges.Select(p => $"{p[0]} {p[1]}").ToArray();
+        var special = BuildOrderedSpecialTokens(tok.AddedTokens);
+
+        var mergeLines = new string[tok.Model.Merges.Count];
+        for (int i = 0; i < tok.Model.Merges.Count; i++)
+        {
+            var p = tok.Model.Merges[i];
+            if (p is null || p.Count != 2)
+                throw new InvalidOperationException($"tokenizer.json \"model.merges\"[{i}] 应为长度为 2 的字符串数组。");
+            mergeLines[i] = $"{p[0]} {p[1]}";
+        }
         return (mergeLines, enc, special, tok.Normalizer, tok.PreTokenizerConfig);
     }
 
     private static (string[] bpeVocabLines, Dictionary<string, int> encoder, Dictionary<int, string> special, NormalizerConfig? normalizer, PreTokenizerConfig? preTokenizer)
         BuildLoadResult_StringMerges(TokenizerJson_MergesAsString tok)
     {
+        if (tok is null)
+            throw new InvalidOperationException("tokenizer.json 反序列化失败：根对象为空。");
+        if (tok.Model is null)
+            throw new InvalidOperationException("tokenizer.json 缺少 \"model\" 节点。");
+        if (tok.Model.Vocab is null || tok.Model.Vocab.Count == 0)
+            throw new InvalidOperationException("tokenizer.json \"model.vocab\" 节点缺失或为空。");
+        if (tok.Model.Merges is null)
+            throw new InvalidOperationException("tokenizer.json \"model.merges\" 节点缺失。");
+
         var enc = tok.Model.Vocab;
-        var special = tok.SpecialTokens();
-        var mergeLines = tok.Model.Merges
-            .Select(s =>
-            {
-                var p = s.Split(' ', 2, StringSplitOptions.None);
-                if (p.Length != 2)
-                    throw new InvalidOperationException($"无效的 merge 行（需恰好两个由空格分隔的片段）: \"{s}\"");
-                return $"{p[0]} {p[1]}";
-            })
-            .ToArray();
+        var special = BuildOrderedSpecialTokens(tok.AddedTokens);
+        var mergeLines = new string[tok.Model.Merges.Count];
+        for (int i = 0; i < tok.Model.Merges.Count; i++)
+        {
+            var s = tok.Model.Merges[i];
+            if (string.IsNullOrEmpty(s))
+                throw new InvalidOperationException($"tokenizer.json \"model.merges\"[{i}] 为空字符串。");
+            var p = s.Split(' ', 2, StringSplitOptions.None);
+            if (p.Length != 2)
+                throw new InvalidOperationException($"无效的 merge 行（需恰好两个由空格分隔的片段）: \"{s}\"");
+            mergeLines[i] = $"{p[0]} {p[1]}";
+        }
         return (mergeLines, enc, special, tok.Normalizer, tok.PreTokenizerConfig);
+    }
+
+    /// <summary>
+    /// 将 added_tokens 列表转为「按 id 索引」的字典；保留原始顺序（用于后续 splitter 长度降序排序）；
+    /// 重复 id 时取最后一条（与「明确报错」相比，更兼容个别 HF 导出工具的怪异输出）。
+    /// </summary>
+    private static Dictionary<int, string> BuildOrderedSpecialTokens(List<AddedToken>? addedTokens)
+    {
+        var result = new Dictionary<int, string>(addedTokens?.Count ?? 0);
+        if (addedTokens is null) return result;
+        for (int i = 0; i < addedTokens.Count; i++)
+        {
+            var at = addedTokens[i];
+            if (at is null) continue;
+            if (string.IsNullOrEmpty(at.Content))
+                continue;
+            result[at.Id] = at.Content;
+        }
+        return result;
     }
 }
 

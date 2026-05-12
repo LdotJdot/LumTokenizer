@@ -47,7 +47,7 @@ namespace LumTokenizer.Tokenizer
 
             _encodePipeline = TokenizerEncodePipeline.Compile(normalizer, preTokenizer, _byteEncoder, encoding);
 
-            splitter = new HighPerformanceSpanSplitter(special.Values);
+            splitter = new HighPerformanceSpanSplitter(OrderSpecialTokensByLengthDesc(special));
         }
 
         public static ConcurrentBPETokenizer CreateTokenizer(string path, int vocabSize = 0)
@@ -83,10 +83,26 @@ namespace LumTokenizer.Tokenizer
 
             foreach (var (id, text) in special)
             {
+                if (string.IsNullOrEmpty(text))
+                    continue;
                 specialEnc[text] = id;
                 specialDecBytes[id] = encoding.GetBytes(text);
             }
             specialDecBytes_froz = specialDecBytes.ToFrozenDictionary();
+        }
+
+        /// <summary>
+        /// 构造 splitter 时需要按「长度降序」喂入 special token 字符串，避免短前缀 token 抢占长 token；
+        /// 与上层调用方原先传入 Dictionary.Values 的「不稳定枚举顺序」相比，本方法的顺序是确定且最优的。
+        /// </summary>
+        private static List<string> OrderSpecialTokensByLengthDesc(Dictionary<int, string> special)
+        {
+            var list = new List<string>(special.Count);
+            foreach (var v in special.Values)
+                if (!string.IsNullOrEmpty(v))
+                    list.Add(v);
+            list.Sort(static (a, b) => b.Length.CompareTo(a.Length));
+            return list;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -101,11 +117,19 @@ namespace LumTokenizer.Tokenizer
                 decodings[value] = key;
             }
 
-            // 构建BPE合并排名
-            var bpeMerges = bpeVocabLines.AsSpan(1, bpeVocabLines.Length - 2);
-            for (int i = 0; i < bpeMerges.Length; i++)
+            // 构建 BPE 合并排名。
+            // 关键修复：`TokMap.LoadFromTokenizerJson` 返回的 mergeLines 不包含 GPT-2 `merges.txt` 那种
+            // 「首行版本注释 + 末行空白占位」结构，整块都是真正的 merge 行。
+            // 之前用 `AsSpan(1, Length - 2)` 会：
+            //   - 在长度 < 3 时抛 ArgumentOutOfRangeException；
+            //   - 在长度 >= 3 时丢掉第 0 行与最后一行 merge，直接导致 BPE 排名与 HuggingFace 不一致，
+            //     进而影响所有依赖该 tokenizer 的 token 计数（含计费场景）。
+            // 修复为「使用全量 mergeLines，对每行做防御性校验」。
+            for (int i = 0; i < bpeVocabLines.Length; i++)
             {
-                var line = bpeMerges[i];
+                var line = bpeVocabLines[i];
+                if (string.IsNullOrEmpty(line))
+                    continue;
                 var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 2)
                 {
@@ -290,9 +314,13 @@ namespace LumTokenizer.Tokenizer
 
                 var val = word.ToArray();
 
-                if (MaxCache > 0 && _cache.Count <= MaxCache)
+                // 关键修复：之前的「Count <= MaxCache 后再写入」是非原子的两步操作，多线程并发时
+                // 条目数会无界增长。这里改用「先尝试 TryAdd；溢出则不写入」的乐观策略——这是 soft cap，
+                // 极端场景下可能短暂略超 MaxCache，但不会持续增长（写不进就不再增长，已写入条目仍可命中）。
+                // 真正的硬上限需要内部双链表 + 锁，权衡后这里取「内存安全 + 简洁」。
+                if (MaxCache > 0 && _cache.Count < MaxCache)
                 {
-                    _cache[token] = val;
+                    _cache.TryAdd(token, val);
                 }
 
                 return val;
@@ -307,7 +335,21 @@ namespace LumTokenizer.Tokenizer
 
         public List<int> Encode(string text, bool handleSpecialToken = true)
         {
-            var ssp = new PooledList<Range>(text.Length * 6);
+            ArgumentNullException.ThrowIfNull(text);
+            if (text.Length == 0)
+                return new List<int>(0);
+
+            // 关键修复：之前 `var ssp = new PooledList<Range>(...)` 从未 Dispose，
+            // 导致每次 Encode 都租用 ArrayPool 数组但永不归还，长运行场景下 ArrayPool
+            // 退化为持续新分配 + GC 压力上升的内存泄漏。改为 using。
+            // 同时对极端长度做防御性 clamp，避免 `text.Length * 6` 算术溢出。
+            int hintCap = text.Length switch
+            {
+                <= 0 => 16,
+                > 0x0AAA_AAAA => int.MaxValue / 8, // 防溢出 clamp
+                _ => text.Length * 6
+            };
+            using var ssp = new PooledList<Range>(hintCap);
 
             var bpeTokens = new List<int>(text.Length);
 
@@ -318,8 +360,6 @@ namespace LumTokenizer.Tokenizer
 
                 for (int i = 0; i < ssp.Count; i++)
                 {
-                    var subSp = ssp[i];
-
                     if (_specialEnc.TryGetValue(text.AsSpan(ssp[i]), out var id))
                     {
                         bpeTokens.Add(id);
@@ -359,23 +399,32 @@ namespace LumTokenizer.Tokenizer
                     continue;
                 }
 
-                byte[] utf8Bytes = _bytePool.Rent(encoding.GetMaxByteCount(piece.Length));
-                int bytesWritten = encoding.GetBytes(piece.AsSpan(), utf8Bytes);
-
-                char[] tokenChars = _charPool.Rent(bytesWritten);
-
-                for (int bi = 0; bi < bytesWritten; bi++)
-                    tokenChars[bi] = _byteEncoder[utf8Bytes[bi]];
-
-                _bytePool.Return(utf8Bytes);
-
-                var bpeEntry = GetBpeEntryForToken(tokenChars.AsSpan(0, bytesWritten));
-                _charPool.Return(tokenChars);
-
-                foreach (var token in bpeEntry)
+                // 关键修复：原实现把两块 ArrayPool 借用都放在「直线代码」上，任何中间异常都会漏 Return，
+                // 长运行下会让 ArrayPool 退化成持续新分配；下面改成 try/finally 双保险。
+                byte[]? utf8Bytes = null;
+                char[]? tokenChars = null;
+                try
                 {
-                    if (_encodings.TryGetValue(token, out var tokenId))
-                        output.Add(tokenId);
+                    utf8Bytes = _bytePool.Rent(encoding.GetMaxByteCount(piece.Length));
+                    int bytesWritten = encoding.GetBytes(piece.AsSpan(), utf8Bytes);
+
+                    tokenChars = _charPool.Rent(bytesWritten);
+
+                    for (int bi = 0; bi < bytesWritten; bi++)
+                        tokenChars[bi] = _byteEncoder[utf8Bytes[bi]];
+
+                    var bpeEntry = GetBpeEntryForToken(tokenChars.AsSpan(0, bytesWritten));
+
+                    foreach (var token in bpeEntry)
+                    {
+                        if (_encodings.TryGetValue(token, out var tokenId))
+                            output.Add(tokenId);
+                    }
+                }
+                finally
+                {
+                    if (utf8Bytes is not null) _bytePool.Return(utf8Bytes);
+                    if (tokenChars is not null) _charPool.Return(tokenChars);
                 }
             }
         }
