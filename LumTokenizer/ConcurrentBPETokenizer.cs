@@ -1,4 +1,3 @@
-﻿using LumTokenizer.RegexExpression;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
@@ -6,8 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.X86;
 using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace LumTokenizer.Tokenizer
 {
@@ -19,7 +16,7 @@ namespace LumTokenizer.Tokenizer
     {
         public int MaxCache { get; } = 100_0000;
         const int initialSize = 128;
-        private Regex _bpeParserRegex;
+        private readonly TokenizerEncodePipeline _encodePipeline;
 
         private readonly int _vocabCount;
         private readonly FrozenDictionary<string, int> _encodings;
@@ -39,9 +36,8 @@ namespace LumTokenizer.Tokenizer
 
 
         Encoding encoding = Encoding.UTF8;
-        private ConcurrentBPETokenizer(string[] bpeVocabLines, Dictionary<string, int> encoderJson, Dictionary<int, string> special, Regex regex)
+        private ConcurrentBPETokenizer(string[] bpeVocabLines, Dictionary<string, int> encoderJson, Dictionary<int, string> special, NormalizerConfig? normalizer, PreTokenizerConfig? preTokenizer)
         {
-            _bpeParserRegex = regex;
             _encodings = encoderJson.ToFrozenDictionary();
             _vocabCount = encoderJson.Count;
 
@@ -49,12 +45,14 @@ namespace LumTokenizer.Tokenizer
 
             Initialize(bpeVocabLines, out _decodings, out _bpeRanks);
 
+            _encodePipeline = TokenizerEncodePipeline.Compile(normalizer, preTokenizer, _byteEncoder, encoding);
+
             splitter = new HighPerformanceSpanSplitter(special.Values);
         }
 
-        public static ConcurrentBPETokenizer CreateTokenizer(string path, bool mergesAsString = false, RegexType regexType = RegexType.RegexCl100KBase, int vocabSize = 0)
+        public static ConcurrentBPETokenizer CreateTokenizer(string path, bool mergesAsString = false, int vocabSize = 0)
         {
-            var (bpeVocabLines, encoderJsonDictionary, special, regexStr) =
+            var (bpeVocabLines, encoderJsonDictionary, special, normalizer, preTokenizer) =
                 mergesAsString
                 ? TokMap.LoadFromTokenizerJson_MergesAsString(path)
                 : TokMap.LoadFromTokenizerJson(path);
@@ -74,22 +72,7 @@ namespace LumTokenizer.Tokenizer
                 bpeVocabLines = bpeVocabLines.Take(vocabSize).ToArray();
             }
 
-            Regex regex;
-
-            if (regexType == RegexType.Custom)
-            {
-                if (string.IsNullOrWhiteSpace(regexStr))
-                {
-                    throw new ArgumentException("Custom regex string must be provided when regexType is Custom.");
-                }
-                regex = new Regex(regexStr, RegexOptions.Compiled);
-            }
-            else
-            {
-                regex = RegUtils.GetRegex(regexType);
-            }
-
-            return new ConcurrentBPETokenizer(bpeVocabLines, encoderJsonDictionary, special, regex);
+            return new ConcurrentBPETokenizer(bpeVocabLines, encoderJsonDictionary, special, normalizer, preTokenizer);
         }
 
         private void RegisterSpecialTokens(Dictionary<int, string> special,
@@ -360,38 +343,52 @@ namespace LumTokenizer.Tokenizer
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void ProcessRegularText(ReadOnlySpan<char> text, List<int> output)
         {
-            var matches = _bpeParserRegex.EnumerateMatches(text);
-            while (matches.MoveNext())
+            if (text.Length == 0)
+                return;
+
+            var chunk = text.ToString();
+            var normalized = _encodePipeline.ApplyNormalizer(chunk);
+            var pieces = new List<string>(32);
+            _encodePipeline.PreTokenizeToPieces(normalized, pieces);
+
+            foreach (var piece in pieces)
             {
-                var match = matches.Current;
-                var matchSpan = text.Slice(match.Index, match.Length);
+                if (piece.Length == 0) continue;
 
-                // 使用stackalloc避免堆分配
-                byte[] utf8Bytes = _bytePool.Rent(encoding.GetMaxByteCount(match.Length));
-                int bytesWritten = encoding.GetBytes(matchSpan, utf8Bytes);
+                if (_encodePipeline.EndsWithByteLevelPreTokenizer)
+                {
+                    EncodeFromByteLevelMapped(piece.AsSpan(), output);
+                    continue;
+                }
 
-                // 构建token字符串
+                byte[] utf8Bytes = _bytePool.Rent(encoding.GetMaxByteCount(piece.Length));
+                int bytesWritten = encoding.GetBytes(piece.AsSpan(), utf8Bytes);
+
                 char[] tokenChars = _charPool.Rent(bytesWritten);
 
-                for (int i = 0; i < bytesWritten; i++)
-                {
-                    tokenChars[i] = _byteEncoder[utf8Bytes[i]];
-                }
+                for (int bi = 0; bi < bytesWritten; bi++)
+                    tokenChars[bi] = _byteEncoder[utf8Bytes[bi]];
 
                 _bytePool.Return(utf8Bytes);
 
-                // 获取BPE编码
                 var bpeEntry = GetBpeEntryForToken(tokenChars.AsSpan(0, bytesWritten));
-
                 _charPool.Return(tokenChars);
 
                 foreach (var token in bpeEntry)
                 {
                     if (_encodings.TryGetValue(token, out var tokenId))
-                    {
                         output.Add(tokenId);
-                    }
                 }
+            }
+        }
+
+        private void EncodeFromByteLevelMapped(ReadOnlySpan<char> piece, List<int> output)
+        {
+            var bpeEntry = GetBpeEntryForToken(piece);
+            foreach (var token in bpeEntry)
+            {
+                if (_encodings.TryGetValue(token, out var tokenId))
+                    output.Add(tokenId);
             }
         }
 

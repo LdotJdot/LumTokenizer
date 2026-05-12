@@ -1,8 +1,9 @@
-﻿using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
+using Iced.Intel;
 using LumTokenizer;
-using LumTokenizer.RegexExpression;
 using LumTokenizer.Tokenizer;
+using Microsoft.Diagnostics.Symbols;
 using SharpToken;
 using System.Buffers;
 using System.Diagnostics;
@@ -13,14 +14,61 @@ namespace ConsoleApp1
 
     internal class Program
     {
+        // 固定的 magic number，就是你已经测出来的 token
+        static readonly int[] userStart = { 1, 320, 275 };          // <|im_start|>user
+        static readonly int[] assistantStart = { 1, 1078, 538, 501 };    // <|im_start|>assistant
+        static readonly int eos = 2;                                     // <|im_end|>
+        static (int[] inputIds, int[] labels) MakeSftPair(List<int> fullTokens)
+        {
+            int len = fullTokens.Count;
+            int[] inputIds = fullTokens.ToArray();
+            int[] labels = new int[len];
+
+            // 1. 全部 mask
+            Array.Fill(labels, -100);
+
+            var assistantStartSpan = assistantStart.AsSpan();
+            var aspLength = assistantStartSpan.Length;
+            var inputIdsSpan = inputIds.AsSpan();
+            var labelsSpan = labels.AsSpan();
+
+            // 2. 扫描 assistant 区间
+            for (int i = 1; i < len;)
+            {
+                // 探测 <|im_start|>assistant
+                if (i + aspLength <= len && assistantStartSpan.SequenceEqual(inputIdsSpan.Slice(i, aspLength)))
+                {                    
+                    int segStart = i;
+
+                    // 一直扫到、并包含 <|im_end|>
+                    while (i < len && inputIds[i] != eos) i++;
+
+                    while (i<len && (inputIds[i] == 0 || inputIds[i]==eos)) i++;
+
+                    var segLen = i - segStart;
+
+                    inputIdsSpan.Slice(segStart, segLen).CopyTo(labelsSpan.Slice(segStart-1, segLen));
+                }
+                else
+                    i++;
+            }
+            return (inputIds, labels);
+        }
+
         static void Main(string[] args)
         {
 
-           
+
             //var _tokenizer2 = ConcurrentBPETokenizer.CreateTokenizer(
-            //    @"D:\Data\Personal\AI\llm\tokenizer\minimind_tokenizer.txt", false, RegexType.RegexCl100KBase);
-            //var str = "<|im_end|> <|im_start|> 将";
-            //var id = _tokenizer2.Encode(str);
+            //    @"D:\Data\Personal\AI\llm\tokenizer\minimind_tokenizer.txt", false);
+            var _tokenizer2 = ConcurrentBPETokenizer.CreateTokenizer(
+                @"D:\Data\个人\FAV\MyCoreProj\Projects\OpenLumSharp\OpenLum.WebHost\bin\Debug\net10.0\TokenizerProfiles\deepseek-v4-flash\tokenizer.json");
+            var str = "<｜begin▁of▁sentence｜>今天天气不错<｜end▁of▁sentence｜>";
+            var id = _tokenizer2.Encode(str);
+            var res = MakeSftPair(id);
+            Console.WriteLine(string.Join(',', res.inputIds));
+            Console.WriteLine(string.Join(',', res.labels));
+            return;
 
             //Console.WriteLine(string.Join(",", id));
 
@@ -83,9 +131,9 @@ namespace ConsoleApp1
             _sharpToken = GptEncoding.GetEncoding("cl100k_base");
             _tikToken = TikToken.GetEncodingAsync("cl100k_base").ConfigureAwait(false).GetAwaiter().GetResult();
             _tokenizer1 = BPETokenizer.CreateTokenizer(
-                @"D:\Data\Personal\AI\llm\tokenizer\cl100k.txt", true, RegexType.Custom);
+                @"D:\Data\Personal\AI\llm\tokenizer\cl100k.txt", true);
             _tokenizer2 = ConcurrentBPETokenizer.CreateTokenizer(
-                @"D:\Data\Personal\AI\llm\tokenizer\cl100k.txt", true, RegexType.Custom);
+                @"D:\Data\Personal\AI\llm\tokenizer\cl100k.txt", true);
         }
 
         // ====== 1. 声明参数源 ======

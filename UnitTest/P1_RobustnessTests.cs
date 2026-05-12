@@ -1,4 +1,4 @@
-﻿// P1_RobustnessTests.cs
+// P1_RobustnessTests.cs
 using LumTokenizer.Tokenizer;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
@@ -21,9 +21,9 @@ namespace MiniMind.Tokenizer.Tests
         public static void Init(TestContext _)
         {
             _tok = BPETokenizer.CreateTokenizer(
-                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false, LumTokenizer.RegexExpression.RegexType.RegexCl100KBase);
+                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false);
             _ctok = ConcurrentBPETokenizer.CreateTokenizer(
-                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false, LumTokenizer.RegexExpression.RegexType.RegexCl100KBase);
+                  @"D:\Data\Personal\AI\llm\tokenizer\qw_tokenizer.json", false);
 
         }
         /* 01 空输入 */
@@ -113,7 +113,7 @@ namespace MiniMind.Tokenizer.Tests
         // 纯BPE tokenizer 不处理换行符统一 
 
         /* 11 特殊字符处理 */
-        /* 需要在 LumTokenizer.RegexExpression.RegexType.RegexCl100KBase 匹配下满足 */
+        /* 依赖 qw_tokenizer.json 中 pre_tokenizer 的 Split 正则划分 */
 
         [TestMethod]
         public void Encode_Special_Characters_Merge()
